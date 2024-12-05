@@ -2,9 +2,7 @@
 that scene where the death egg crashes into launch base but in Sonic 3 AIR (based on the Origins version, rather than the Sonic 3 Complete version)
 y'know, like, some Origins Parity i guess! (but also not really.)
 
-# Screenshot of the mod in use
-
-(TBA)
+![mod in use](https://github.com/nabbup/LBZ2DeathEggFalling/blob/1f9978a866e6a1abca26452f66024694f2d676fb/mod%20in%20use.png)
 
 ## Side-notes
 1. this isn't meant to replace the [Sonic 3 Complete LBZ Transition](https://gamebanana.com/wips/51834) mod that was released a long time ago.
