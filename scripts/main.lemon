@@ -1,0 +1,217 @@
+// thanks for checking out my mod!
+// ~ Raine
+// P.S. if you're seeing this, please make sure you've downloaded this mod from my github page
+// https://github.com/nabbup/LBZ2DeathEggFalling
+// if you didn't download it from there, i don't know what could've been changed.
+// it was probably stolen or just generally an unofficial upload.
+// if you know who was responsible for that please get them to take it down.
+
+// FYI: screen widths larger than 464x240 look weird in this cutscene without a modified background.
+// i'm not really able to fix this without adjusting the whole position of the camera, and i'm not really gonna do that :3
+
+// this is kinda just a portion of a larger mod i guess. that COULD release but i'm gonna just test the waters with this!
+
+// functions below meant for modding support! (the first three are for graphics)
+function string LBZ2.getBackgroundKey()
+{
+	return "bg_title_screen_sk" // default sprite key, can be replaced by other mods if they wish to do that.
+}
+
+function string LBZ2.getMountainOverlayKey()
+{
+	return "sk_mountain_overlay" // default sprite key, can be replaced by other mods if they wish to do that.
+}
+
+function string LBZ2.getDeathEggSpriteKey()
+{
+	return "lbz2_deathegg" // default sprite key, can be replaced by other mods if they wish to do that.
+}
+
+// use this function to just skip the cutscene outright. by default used for Knuckles' boss arena since he's usually only meant to be there.
+function bool LBZ2.skipTransition()
+{
+	return isMainCharacter(CHARACTER_KNUCKLES) && (camera.position.y.u16 < 0x0500) // the game checks for knuckles' boss arena like this
+}
+
+// technically with the way the code below works you can have this trigger with any zone and it'd probably work.
+// i don't reccomend that though because it'd make no sense
+function void TriggerNextZone(u16 zoneAndAct)
+{
+	if (global.zone_act == 0x0601 && !LBZ2.skipTransition())
+		LBZ2.DeathEggTransition()
+	base.TriggerNextZone(zoneAndAct)
+}
+
+function void LBZ2.DeathEggTransition()
+{
+	playMusic(MUSIC_CTRL_FADEOUT)
+	kosinski.queue_size = 0
+
+	zeroMemory(0xffffff10, 0x6c)
+
+	ClearPatternLoadingQueue()
+	FadeOutScreenBlocking()
+
+	// clear VRAM!!!!
+	// why?, because i said so!
+	u16 vramAddress = 0xc000
+	for (u8 i = 0; i < 60; ++i)
+	{
+		VDP.setupVRAMWrite(vramAddress)
+		VDP.zeroVRAM(0x80)
+		vramAddress += 0x80
+	}
+	
+	Kosinski.decompress(0x0cca20, 0xffff0000)
+	updateSpritePattern(0xffff0000, TitleScreenSK.Background.targetInVRAM, 0x0e20)
+
+	water.fullscreen = 0
+	level.water_present = 0
+
+	zeroMemory(0xffffb000, 0x2000)
+	
+	u16[0xffffee64] = 0x100 // something with the camera offset i think??
+	u16[0xffffee66] = 0 // i think something with the death egg's y-offset
+	
+	bool startFadeOut = false
+
+	Enigma.decompress(0x0cc3aa, 0xffff7cc0, (TitleScreenSK.Background.targetInVRAM >> 5))
+	
+	A1 = 0xffff7cc0
+	D0 = 0x60000003
+	fn005d24()
+	
+	copyMemory(0xfffffc80, 0x005588, 0x80)
+	palette_fade.range = 0x3f
+	global.fade_timer = 0x16
+	global.demo_countdown = 1080
+	camera.screenshake.state = 0
+	
+	Audio.playAudio("lbz2_deathegg_fall", AudioContext.CONTEXT_MUSIC)
+	
+	while (true)
+	{
+		while (true)
+		{
+			global.level_started = 0
+			if (u16[0xffffee64] == 0x50)
+			{
+				camera.screenshake.state = 0x1e
+				playSound(SFX_COLLAPSE)
+			}
+			else
+				UpdateScreenShake()
+			
+			u16[0xffffee66]++
+			
+			LBZ2.drawObjectsInTransition()
+			bool moveDown = true
+			if (s16[0xffffee64] <= 0x50)
+				moveDown = (global.demo_countdown & 0x03) == 0
+			if (moveDown)
+				u16[0xffffee64]--
+			if (u16[0xffffee64] == 0x20 && global.fade_timer == 0)
+			{
+				global.fade_timer = 0x20
+				startFadeOut = true
+			}
+			if ((u16[0xffffee64] <= 0x50 && u16[0xffffee64] > 0x38))
+			{
+				playSound(0xcc)
+			}
+			
+			global.frame_state = 0x1a
+			Kosinski.ProcessDecompressionQueue()
+			waitForNextFrame()
+
+			if (global.fade_timer != 0)
+			{
+				--global.fade_timer
+				if (startFadeOut)
+					FadeOutPalette()
+				else
+					FadeInPalette()
+			}
+
+			UpdateGameObjects()
+			RenderSprites()
+			Kosinski.ProcessModules()
+			break
+		}
+
+		if (startFadeOut == true && global.fade_timer == 0)
+			break
+	}
+}
+
+function void LBZ2.drawObjectsInTransition()
+{
+	// posOffset and posOffsetY handle screenshaking. the code for it is kinda jank.
+	// sorry not sorry :P
+	s8 posOffset = (camera.screenshake.state & 0x01 ? -camera.screenshake.state + 1 : camera.screenshake.state) / 4
+	s8 posOffsetY = s8[0x04f424 + (camera.screenshake.state & 0xff)] * 2/3
+	
+	// hey look it's the Death Egg!
+	u16 deathEggOffsetY = u16[0xffffee66]/4 - 0x2b
+	if (u16[0xffffee64] <= 0x50)
+		deathEggOffsetY = u16[0xffffee64] - 0x50
+	// code below handles explosions. they're based off the Origins one, not perfect but done to a degree where nobody'd notice, i think.
+	if ((global.demo_countdown % 12 == 0 && u16[0xffffee64] <= 0x50) || (global.demo_countdown % 8 == 0 && u16[0xffffee64] > 0x50))
+	{
+		GetRandomNumber()
+		u16 randX = ((D0.u16 & 0x1f) - 0x10)*3 + 0x28
+		D0 >>= 16
+		u16 randY = ((D0.u16 & 0x1f) - 0x10)*2 + 0x28
+		if (allocDynamicObjectStd())
+		{
+			objA1.update_address = addressof(LBZ2.explosionUpdate)
+			objA1.render_flags = render_flag.VISIBLE
+			objA1.position.x.u16 = randX + getScreenWidth()/2 + 0x64
+			objA1.position.y.u16 = randY + getScreenHeight()/2 + 0x14
+			objA1.animation.sprite = 0
+			LBZ2.explosionUpdate()
+		}
+	}
+	
+	// hey look it's the actual rendering!
+	// sorry that these aren't actual objects btw, it makes it less of a headache.
+	Renderer.drawCustomSprite("sk_mountain_overlay", getScreenWidth()/2 - 0x28 - posOffset, u16[0xffffee64] - posOffsetY + 0x20, 0x00, 0, 0x1300)
+	
+	Renderer.drawCustomSprite("lbz2_deathegg", getScreenWidth()/2 - 0x28 - posOffset, deathEggOffsetY - posOffsetY, 0x00, 0, 0x1200)
+	
+	Renderer.drawCustomSprite(LBZ2.getBackgroundKey(), getScreenWidth()/2 - 0xd0 - posOffset, u16[0xffffee64] - posOffsetY, 0x00, 0, 0x1100)
+	// you might be wondering, why no spritehandles?
+	// good question. i don't know why i didn't use them, i just thought it'd be fine to use the older functions anyways.
+	// Euka has done it, i don't have a problem with doing it.
+}
+
+//# address-hook(0x2002a0)
+function void LBZ2.explosionUpdate()
+{
+	// generic visual effect code, pretty much.
+	objA0.animation.timer++
+	if (objA0.animation.timer == 5)
+	{
+		objA0.animation.timer = 0
+		objA0.animation.sprite++
+		if (objA0.animation.sprite > 4)
+		{
+			UnloadObject()
+			return
+		}
+	}
+	DrawObject()
+}
+
+function bool Standalone.onWriteToSpriteTable(s16 px, s16 py, u16 renderQueue)
+{
+	// renderhooking the explosion, because what else would i do?
+	// it can't be rendered in the object code silly
+	if (objA0.update_address == addressof(LBZ2.explosionUpdate))
+	{
+		string key = stringformat("lbz2_dez_explode_%02x", objA0.animation.sprite)
+		Renderer.drawCustomSprite(key, px, py, 0x00, 0, renderQueue)
+		return true
+	}
+	return base.Standalone.onWriteToSpriteTable(px, py, renderQueue)
+}

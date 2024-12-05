@@ -1,0 +1,9 @@
+{
+	"lbz2_deathegg":  { "File": "deathegg.bmp" },
+	"sk_mountain_overlay":  { "File": "sk_mountain_overlay.bmp" },
+	"lbz2_dez_explode_00":  { "File": "deathegg_explosion.bmp", "Rect": "1,1,13,14" },
+	"lbz2_dez_explode_01":  { "File": "deathegg_explosion.bmp", "Rect": "15,1,13,14" },
+	"lbz2_dez_explode_02":  { "File": "deathegg_explosion.bmp", "Rect": "29,1,13,14" },
+	"lbz2_dez_explode_03":  { "File": "deathegg_explosion.bmp", "Rect": "43,1,13,14" },
+	"lbz2_dez_explode_04":  { "File": "deathegg_explosion.bmp", "Rect": "57,1,13,14" },
+}
